@@ -296,3 +296,13 @@ tab2 <- lapply(names(tab2), function(x) mutate(tab2[[x]], Type = x))
 tidytabs$tab2 <- do.call(bind_rows, tab2) %>% 
    select(Year, Type, Sector, Cost)
 rm(tab2)
+
+tab4 <- lapply(mytabs$tab4, data.frame)
+tab4 <- lapply(tab4, function(x) {x$Sector <- rownames(x); x})
+tab4 <- lapply(tab4, gather, Year, Cost, Year.90.91:Year.15.16)
+tab4 <- lapply(tab4, function(x) mutate(x, Year = 1900 + as.integer(substr(gsub('Year\\.','',Year),1,2))))
+tab4 <- lapply(tab4, function(x) mutate(x, Year = ifelse(Year > 1990, Year, Year + 100)))
+tab4 <- lapply(names(tab4), function(x) mutate(tab4[[x]], Dollars = x))
+tidytabs$tab4 <- do.call(bind_rows, tab4) %>% 
+   select(Year, Dollars, Sector, Cost)
+rm(tab4)
