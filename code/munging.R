@@ -299,10 +299,71 @@ rm(tab2)
 
 tab4 <- lapply(mytabs$tab4, data.frame)
 tab4 <- lapply(tab4, function(x) {x$Sector <- rownames(x); x})
-tab4 <- lapply(tab4, gather, Year, Cost, Year.90.91:Year.15.16)
+tab4 <- lapply(tab4, gather, Year, Cost, starts_with('Year'))
 tab4 <- lapply(tab4, function(x) mutate(x, Year = 1900 + as.integer(substr(gsub('Year\\.','',Year),1,2))))
 tab4 <- lapply(tab4, function(x) mutate(x, Year = ifelse(Year > 1990, Year, Year + 100)))
 tab4 <- lapply(names(tab4), function(x) mutate(tab4[[x]], Dollars = x))
 tidytabs$tab4 <- do.call(bind_rows, tab4) %>% 
    select(Year, Dollars, Sector, Cost)
 rm(tab4)
+
+tab5 <- lapply(mytabs$tab5, data.frame)
+tab5 <- lapply(tab5, function(x) {x$State <- rownames(x); x})
+tab5 <- lapply(tab5, gather, Year, Cost, starts_with('Year'))
+tab5 <- lapply(tab5, function(x) mutate(x, Year = as.integer(substr(gsub('Year\\.','',Year),1,4))))
+tab5 <- lapply(names(tab5), function(x) mutate(tab5[[x]], Dollars = x))
+tidytabs$tab5 <- do.call(bind_rows, tab5) %>% 
+   select(Year, Dollars, State, Cost)
+rm(tab5)
+
+tab6 <- lapply(mytabs$tab6, data.frame)
+tab6 <- lapply(tab6, function(x) {x$University <- rownames(x); x})
+tab6 <- lapply(tab6, gather, Year, Cost, starts_with('Year'))
+tab6 <- lapply(tab6, function(x) mutate(x, Year = as.integer(substr(gsub('Year\\.','',Year),1,4))))
+tab6 <- lapply(names(tab6), function(x) mutate(tab6[[x]], Dollars = x))
+tidytabs$tab6 <- do.call(bind_rows, tab6) %>% 
+   select(Year, Dollars, University, Cost)
+rm(tab6)
+
+tab7 <- lapply(mytabs$tab7, data.frame)
+tab7 <- lapply(tab7, function(x) {x$Type <- rownames(x); x})
+tab7 <- lapply(tab7, gather, Year, Cost, starts_with('Year'))
+tab7 <- lapply(tab7, function(x) mutate(x, Year = 1900 + as.integer(substr(gsub('Year\\.','',Year),1,2))))
+tab7 <- lapply(tab7, function(x) mutate(x, Year = ifelse(Year > 1989, Year, Year + 100)))
+tab7 <- lapply(names(tab7), function(x) mutate(tab7[[x]], Dollars = x))
+tidytabs$tab7 <- do.call(bind_rows, tab7) %>% 
+   select(Year, Dollars, Type, Cost)
+rm(tab7)
+
+tidytabs$taba2 <- data.frame(mytabs$taba2)
+tidytabs$fig1 <- data.frame(mytabs$fig1)
+tidytabs$fig1$Sector <- rownames(tidytabs$fig1)
+tidytabs$fig1 <- gather(tidytabs$fig1, Type, Cost, Tuition.and.Fees:Total.Expenses.)
+tidytabs$fig2 <- data.frame(mytabs$fig2)
+tidytabs$fig2$Region <- rownames(tidytabs$fig2)
+tidytabs$fig2 <- gather(tidytabs$fig2, Type, Cost, 
+                        Public.Four.Year.In.State.Tuition.and.Fees:
+                           Private.Nonprofit.Four.Year.Room.and.Board)
+
+fig3 <- mytabs$fig3
+Sector <- colnames(fig3)
+Median <- as.numeric(gsub('^.*\\$|)|,','',Sector))
+Sector <- sapply(gsub('\\(.*','',Sector), trimws)
+colnames(fig3) <- Sector
+fig3 <- data.frame(fig3)
+names(Median) <- names(fig3)
+fig3$Bracket <- rownames(fig3)
+fig3 <- gather(fig3, Sector, Share, Public.and.Private.Nonprofit.Four.Year.Combined:
+                  Private.Nonprofit.Four.Year)
+Median <- data.frame(Median)
+Median$Sector <- rownames(Median)
+tidytabs$fig3 <- merge(fig3, Median)
+rm(fig3, Median, Sector)
+
+fig5 <- lapply(mytabs$fig5, data.frame)
+fig5 <- lapply(fig5, function(x) {x$Decade <- rownames(x); x})
+fig5 <- lapply(fig5, gather, Sector, Increase, Private.Nonprofit.Four.Year:Public.Four.Year)
+fig5 <- lapply(names(fig5), function(x) mutate(fig5[[x]], Type = x))
+tidytabs$fig5 <- do.call(bind_rows, fig5) %>% 
+   select(Type, Sector, Decade, Increase)
+rm(fig5)
