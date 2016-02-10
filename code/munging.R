@@ -367,3 +367,74 @@ fig5 <- lapply(names(fig5), function(x) mutate(fig5[[x]], Type = x))
 tidytabs$fig5 <- do.call(bind_rows, fig5) %>% 
    select(Type, Sector, Decade, Increase)
 rm(fig5)
+
+fig6 <- data.frame(mytabs$fig6) 
+fig6$Year <- rownames(fig6)
+fig6 <- mutate(fig6, Year = as.integer(substr(Year, 1, 2)) + 1900) %>% 
+   mutate(Year = ifelse(Year > 1984, Year, Year + 100)) %>%
+   gather(Sector, Multiplier, Private.Nonprofit.Four.Year:Public.Four.Year)
+tidytabs$fig6 <- fig6
+rm(fig6)
+
+tidyUp89 <- function(x = mytabs$fig8) {
+   fig8 <- lapply(x, data.frame)
+   fig8 <- lapply(fig8, function(x) {x$State <- rownames(x); x})
+   fig8 <- do.call(cbind, fig8)
+   names(fig8) <- c('X2015.16.In.State.Tuition.and.Fees', 'St', 'Five.Year.Pct.Change', 'State') 
+   fig8 <- select(fig8, St, State, X2015.16.In.State.Tuition.and.Fees, Five.Year.Pct.Change)
+   tbl_df(fig8)
+}
+tidytabs$fig8 <- tidyUp89(mytabs$fig8)
+tidytabs$fig9 <- tidyUp89(mytabs$fig9)
+
+fig10 <- data.frame(mytabs$fig10) 
+fig10$School <- rownames(fig10)
+fig10 <- select(fig10, 
+                School, 
+                X2015.16.In.State.Tuition.and.Fees, 
+                X2015.16.Out.of.State.Tuition.and.Fees, 
+                X5.Year...Change.in.In.State.TF)
+names(fig10)[4] <- 'X5.Year.Pct.Change.in.In.State.TF'
+tidytabs$fig10 <- tbl_df(fig10)
+rm(fig10)
+
+tidyUp1213 <- function(x = mytabs$fig12) {
+   fig12 <- data.frame(x) 
+   fig12$Type <- rownames(fig12)
+   fig12 <- gather(fig12, Year, Cost, starts_with('X'))
+   fig12 <- mutate(fig12, Year = as.integer(substr(Year, 2, 4)) + 1900) %>% 
+      mutate(Year = ifelse(Year > 1984, Year, Year + 100))
+   tbl_df(fig12)
+}
+tidytabs$fig12 <- tidyUp1213(mytabs$fig12)
+tidytabs$fig13 <- tidyUp1213(mytabs$fig13)
+
+fig14 <- cbind(mytabs$fig14$avg, mytabs$fig14$distro[,-1])
+colnames(fig14)[1:2] <- c('Average.Net.Tuition.Paid', 'Income.Bracket.Share')
+net_tuition_brackets <- colnames(fig14)[3:ncol(fig14)]   
+fig14 <- data.frame(fig14)
+names(net_tuition_brackets) <- names(fig14)[3:ncol(fig14)]
+fig14$Income.Bracket <- rownames(fig14)
+fig14 <- gather(fig14, Net.Tuition.Bracket, Share, Exactly..0:X.10.000.or.More) %>%
+   mutate(Net.Tuition.Bracket = factor(Net.Tuition.Bracket, 
+                                       levels = names(net_tuition_brackets), 
+                                       labels = net_tuition_brackets))
+tidytabs$fig14 <- tbl_df(fig14)
+rm(fig14)
+
+fig15 <- cbind(mytabs$fig15$avg, mytabs$fig15$distro[,-1])
+colnames(fig15)[1:2] <- c('Average.Net.Tuition.Paid', 'Income.Bracket.Share')
+net_tuition_brackets <- colnames(fig15)[3:ncol(fig15)]   
+fig15 <- data.frame(fig15)
+names(net_tuition_brackets) <- names(fig15)[3:ncol(fig15)]
+fig15$Income.Bracket <- rownames(fig15)
+fig15 <- gather(fig15, Net.Tuition.Bracket, Share, Exactly..0:X.30.000.or.More) %>%
+   mutate(Net.Tuition.Bracket = factor(Net.Tuition.Bracket, 
+                                       levels = names(net_tuition_brackets), 
+                                       labels = net_tuition_brackets))
+tidytabs$fig15 <- tbl_df(fig15)
+rm(fig15)
+
+
+
+
