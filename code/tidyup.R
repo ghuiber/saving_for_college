@@ -73,9 +73,12 @@ tidytabs$tab7 <- do.call(bind_rows, tab7) %>%
 rm(tab7)
 
 tidytabs$taba2 <- data.frame(mytabs$taba2)
+
 tidytabs$fig1 <- data.frame(mytabs$fig1)
 tidytabs$fig1$Sector <- rownames(tidytabs$fig1)
-tidytabs$fig1 <- gather(tidytabs$fig1, Type, Cost, Tuition.and.Fees:Total.Expenses.)
+tidytabs$fig1 <- gather(tidytabs$fig1, Type, Cost, Tuition.and.Fees:Total.Expenses.)  %>% 
+   filter(!(Sector %in% Sector[grep('Two-Year', Sector)]))
+
 tidytabs$fig2 <- data.frame(mytabs$fig2)
 tidytabs$fig2$Region <- rownames(tidytabs$fig2)
 tidytabs$fig2 <- gather(tidytabs$fig2, Type, Cost, 
