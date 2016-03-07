@@ -110,14 +110,6 @@ mycast <- rbind(mutate(mydata, Observed = TRUE),
                                      "1990's", 
                                      "2000's",
                                      "2010's")))
-ggplot(data = filter(mycast, Observed == TRUE), 
-       aes(x = Year, y = Cost)) + 
-   geom_point() + 
-   geom_line(data = filter(mycast, Observed == FALSE), 
-             aes(x = Year, y = Cost, color = Decade), 
-             size = 1) + 
-   facet_grid(.~Type) + 
-   scale_colour_discrete(name = "Growth rate of:")
 
 # now plot the forecast under each slope scenario.
 # add the jump at year 2015 so forecasts start out
@@ -136,7 +128,6 @@ forecast <- select(adjustby, Type, Decade, Adjust.By) %>%
    mutate(Observed = FALSE)
 mycast <- rbind(mycast, forecast) %>%
    mutate(Jump = as.integer(!(Year == 2015)))
-rm(lilcast, adjustby, forecast, newdata, lilextra)
 
 ggplot(data = filter(mycast, Observed == TRUE), 
                   aes(x = Year, y = Cost)) + 
