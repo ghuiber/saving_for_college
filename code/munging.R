@@ -21,6 +21,20 @@ source('code/rawinput.R')
 # 2. Academic years will be YYYY of the Fall year
 source('code/tidyup.R')
 
+# Regions, states, DC and PR
+# Classification according to Table 4 Notes here: 
+# http://trends.collegeboard.org/college-pricing/figures-tables/published-tuition-fees-region-over-time
+regions <- list()
+regions$`Middle States` <- c('DC', 'DE', 'MD', 'NJ', 'NY', 'PA', 'PR')
+regions$`Midwest` <- c('IA', 'IL', 'IN', 'KS', 'MI', 'MN', 'MO', 'NE', 'ND', 'OH', 'SD', 'WI', 'WV')
+regions$`New England` <- c('CT', 'MA', 'ME', 'NH', 'RI', 'VT')
+regions$`South` <- c('AL', 'FL', 'GA', 'KY', 'LA', 'MS', 'NC', 'SC', 'TN', 'VA')
+regions$`Southwest` <- c('AR', 'NM', 'OK', 'TX')
+regions$`West` <- c('AK', 'AZ', 'CA', 'CO', 'HI', 'ID', 'MT', 'NV', 'OR', 'UT', 'WA', 'WY')
+states <- cbind(state.name, state.abb)
+states <- rbind(states, c('District of Columbia', 'DC'))
+states <- rbind(states, c('Puerto Rico', 'PR'))
+
 # here's a possible plot. set knobs in ui.R for 
 # private vs. public, current vs. 2015 dollars.
 ggplot(data = filter(tidytabs$tab2, Sector == 'Public.Four.Year' & 
@@ -31,7 +45,7 @@ ggplot(data = filter(tidytabs$tab4, Sector == 'Public Four-Year' &
                         Dollars == 'Current Dollars'), 
        aes(x = Year, y = Cost, color = Region)) + geom_line(size = 2)
 # by kind of expense
-ggplot(data = filter(tidytabs$tab7, Dollars == 'Public Four-Year In-State'), 
+ggplot(data = filter(tidytabs$tab7, Sector == 'Public Four-Year In-State'), 
        aes(x = Year, y = Cost, color = Type)) + geom_line(size = 2)
 
 # try a simple linear predictor: for 
@@ -128,6 +142,10 @@ forecast <- select(adjustby, Type, Decade, Adjust.By) %>%
    mutate(Observed = FALSE)
 mycast <- rbind(mycast, forecast) %>%
    mutate(Jump = as.integer(!(Year == 2015)))
+<<<<<<< Updated upstream
+=======
+rm(adjustby, forecast, newdata, lilextra)
+>>>>>>> Stashed changes
 
 ggplot(data = filter(mycast, Observed == TRUE), 
                   aes(x = Year, y = Cost)) + 
@@ -139,5 +157,47 @@ ggplot(data = filter(mycast, Observed == TRUE),
    geom_point() + 
    scale_size(guide = 'none', range = c(.2, 1.5)) 
 
-
-
+# plot this region: x is region as in names(regions),
+# default is current dollars, fs is font size and la
+# is line alpha; flagship FALSE means tab5 data, average 
+# in-state cost across the states' systems; TRUE means cost 
+# at the states' flagship universities.
+plotRegion <- function(x = 'Southwest', 
+                       dollars = 'Current Dollars', 
+                       fs = 5, la = .5, 
+                       flagship = FALSE) {
+   rstates <- states[,'state.name'][states[,'state.abb'] %in% regions[[x]]]
+   rst <- states[,'state.abb'][states[,'state.abb'] %in% regions[[x]]]
+   df <- tidytabs$tab5 %>% 
+      filter(Dollars == dollars & State %in% rstates)
+   if(flagship == TRUE) {
+      df <- tidytabs$tab6 %>% 
+         filter(Dollars == dollars & State %in% rst)
+   }
+   labz <- filter(df, Year == max(Year))
+   ggplot(df, aes(x = Year, y = Cost, colour = State)) + 
+      geom_line(size = 1, alpha = la) + 
+      scale_colour_discrete(name = 'State') + 
+      geom_text(labz, 
+                mapping=aes(Year, Cost, label=State), 
+                size = fs) + 
+      theme(legend.position="none")
+}
+# if average = TRUE, then this is in and out of state combined.
+# otherwise, it's in-state only.
+plotNetVsPublished <- function(sector = 'Public Four-Year In-State', 
+                               average = TRUE,
+                               la = .5) {
+   stopifnot(sector %in% c('Private Nonprofit Four-Year', 'Public Four-Year In-State'))
+   df <- tidytabs$tab7 %>% 
+      filter(Sector == sector) 
+   if(average == FALSE) {
+      df <- tidytabs$fig12
+      if(sector == 'Private Nonprofit Four-Year') df <- tidytabs$fig13
+   }
+   df <- filter(df, Type %in% c('Published Tuition and Fees', 
+                                'Net Tuition and Fees'))
+   ggplot(df, aes(x = Year, y = Cost, colour = Type)) + 
+      geom_line(size = 1, alpha = la) + 
+      scale_colour_discrete(name = 'Type')
+}

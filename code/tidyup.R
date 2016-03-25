@@ -46,10 +46,9 @@ tab5 <- lapply(tab5, function(x) mutate(x, Year = as.integer(substr(gsub('Year\\
 tab5 <- lapply(names(tab5), function(x) mutate(tab5[[x]], Dollars = x))
 tab5 <- do.call(bind_rows, tab5) %>% 
    select(Year, Dollars, State, Cost) %>%
-   mutate(Dollars = gsub('Public Four-Year In-State Tuition and Fees', 
+   mutate(Dollars = trimws(gsub('Public Four-Year In-State Tuition and Fees In', 
                          '', 
-                         Dollars)) %>%
-   rename(Public.Four.Year.In.State.Tuition.and.Fees = Dollars)
+                         Dollars))) 
 tidytabs$tab5 <- tab5
 rm(tab5)
 
@@ -59,7 +58,11 @@ tab6 <- lapply(tab6, gather, Year, Cost, starts_with('Year'))
 tab6 <- lapply(tab6, function(x) mutate(x, Year = as.integer(substr(gsub('Year\\.','',Year),1,4))))
 tab6 <- lapply(names(tab6), function(x) mutate(tab6[[x]], Dollars = x))
 tidytabs$tab6 <- do.call(bind_rows, tab6) %>% 
-   select(Year, Dollars, University, Cost)
+   select(Year, Dollars, University, Cost) %>% 
+   separate(University, c('State', 'University'), sep = ' ', extra = 'merge') %>%
+   mutate(Dollars = trimws(gsub('In-State Tuition and Fees In', 
+                                '', 
+                                Dollars)))
 rm(tab6)
 
 tab7 <- lapply(mytabs$tab7, data.frame)
@@ -69,7 +72,8 @@ tab7 <- lapply(tab7, function(x) mutate(x, Year = 1900 + as.integer(substr(gsub(
 tab7 <- lapply(tab7, function(x) mutate(x, Year = ifelse(Year > 1989, Year, Year + 100)))
 tab7 <- lapply(names(tab7), function(x) mutate(tab7[[x]], Dollars = x))
 tidytabs$tab7 <- do.call(bind_rows, tab7) %>% 
-   select(Year, Dollars, Type, Cost)
+   select(Year, Dollars, Type, Cost) %>%
+   rename(Sector = Dollars)
 rm(tab7)
 
 tidytabs$taba2 <- data.frame(mytabs$taba2)
@@ -120,8 +124,8 @@ tidyUp89 <- function(x = mytabs$fig8) {
    fig8 <- lapply(x, data.frame)
    fig8 <- lapply(fig8, function(x) {x$State <- rownames(x); x})
    fig8 <- do.call(cbind, fig8)
-   names(fig8) <- c('X2015.16.In.State.Tuition.and.Fees', 'St', 'Five.Year.Pct.Change', 'State') 
-   fig8 <- select(fig8, St, State, X2015.16.In.State.Tuition.and.Fees, Five.Year.Pct.Change)
+   names(fig8) <- c('X2015.16.Tuition.and.Fees', 'St', 'Five.Year.Pct.Change', 'State') 
+   fig8 <- select(fig8, St, State, X2015.16.Tuition.and.Fees, Five.Year.Pct.Change)
    tbl_df(fig8)
 }
 tidytabs$fig8 <- tidyUp89(mytabs$fig8)
