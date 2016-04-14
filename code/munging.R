@@ -56,106 +56,116 @@ ggplot(data = filter(tidytabs$tab7, Sector == 'Public Four-Year In-State'),
 # like it calls for a spline regression, 
 # but a decade dummy interacted with
 # year will work well enough.
-mydata <- filter(tidytabs$tab2, 
-                 Sector == 'Public.Four.Year' & 
-                    Dollars == 'Current Dollars') %>% 
-   mutate(Decade = ceiling((Year - 1970)/10)) %>%
-   select(-c(Dollars, Sector))
-mod <- lm(Cost ~ Year * factor(Decade) * factor(Type), data = mydata)
-
-# now extrapolate under each of the
-# 5 slope scenarios, one per decade.
-years <- 2015 + c(0:12)
-types <- unique(factor(mydata$Type))
-decades <- unique(factor(mydata$Decade))
-newdata <- expand.grid(years,types,decades) %>%
-   rename(Year = Var1, Type = Var2, Decade = Var3)
-pcost <- predict(mod, newdata = newdata)
-newdata$Cost <- pcost
-newdata <- tbl_df(newdata) %>% 
-   mutate(Decade = as.integer(Decade))
-
-# adjust the intercept: there has to be a
-# jump at year 2015 so forecasts under 
-# each decade's own slope start from the 
-# same point
-observed.start <- filter(mydata, Year == 2015) %>% 
-   select(-Decade) %>% 
-   rename(Observed.Cost = Cost)
-predicted.start <- filter(newdata, Year == 2015) %>% 
-   rename(Predicted.Cost = Cost)
-adjust <- inner_join(observed.start, predicted.start) %>%
-   arrange(Decade, Type, Year)
-
-adjustby <- filter(adjust, Decade == 5L) %>% 
-   select(-c(Observed.Cost, Year, Decade)) %>% 
-   rename(Adjust.By = Predicted.Cost) %>%
-   inner_join(adjust) %>%
-   mutate(Adjust.By = Adjust.By - Predicted.Cost) %>%
-   arrange(Decade, Type, Year) %>%
-   select(Year, Type, Decade, Observed.Cost, Predicted.Cost, Adjust.By)
-
-# get extrapolations under each slope scenario.
-# this will help explain what the Shiny app is doing.
-lilextra <- do.call(rbind, 
-                    sapply(c(1:5), 
-                           function(x) cbind(x, 
-                                             c((x * 10 + 1960):2015)))) %>%
-   data.frame() %>%
-   rename(Decade = x, 
-          Year = V2)
-lilextra$Type <- types[1]
-lilextra2 <- select(lilextra, -Type) %>%
-   mutate(Type = types[2])
-lilextra <- rbind(lilextra, lilextra2) %>%
-   tbl_df()
-lilextra$Cost <- predict(mod, newdata = lilextra)
-rm(observed.start, predicted.start, adjust, lilextra2)
-
-# put predicted and observed together.
-# there's gotta be a way to ggplot both,
-# observed as scatter and predicted as line.
-mycast <- rbind(mutate(mydata, Observed = TRUE), 
-                mutate(lilextra, Observed = FALSE)) %>%
-   mutate(Year = as.integer(Year), 
-          Decade = factor(Decade, levels = c(1L:5L), 
-                          labels = c("1970's", 
-                                     "1980's", 
-                                     "1990's", 
-                                     "2000's",
-                                     "2010's")))
-
-# now plot the forecast under each slope scenario.
-# add the jump at year 2015 so forecasts start out
-# from the same point.
-forecast <- select(adjustby, Type, Decade, Adjust.By) %>% 
-   inner_join(newdata) %>% 
-   mutate(Cost = Cost + Adjust.By, 
-          Year = as.integer(Year), 
-          Decade = factor(Decade, levels = c(1L:5L), 
-                          labels = c("1970's", 
-                                     "1980's", 
-                                     "1990's", 
-                                     "2000's",
-                                     "2010's"))) %>%
-   select(-Adjust.By) %>%
-   mutate(Observed = FALSE)
-mycast <- rbind(mycast, forecast) %>%
-   mutate(Jump = as.integer(!(Year == 2015)))
-<<<<<<< Updated upstream
-=======
-rm(adjustby, forecast, newdata, lilextra)
->>>>>>> Stashed changes
-
-ggplot(data = filter(mycast, Observed == TRUE), 
-                  aes(x = Year, y = Cost)) + 
-   geom_line(data = filter(mycast, Observed == FALSE), 
-             aes(x = Year, y = Cost, color = Decade, 
-             size = Jump)) + 
-   facet_grid(.~Type) + 
-   scale_colour_discrete(name = "Growth rate of:") + 
-   geom_point() + 
-   scale_size(guide = 'none', range = c(.2, 1.5)) 
+# Arguments:
+# - training: tidy data frame to train forecast on
+# - sector: one of c('Public.Four.Year', 'Private.Nonprofit.Four.Year')
+# - dollars: as of 2016, one of c('2015 Dollars', 'Current Dollars')
+# - howfar: integer years into the future
+plotForecast <- function(training = tidytabs$tab2, 
+                         sector = 'Public.Four.Year',
+                         dollars = 'Current Dollars',
+                         howfar = 12) {
+   stopifnot(sector %in% c('Public.Four.Year',
+                           'Private.Nonprofit.Four.Year'))
+   stopifnot(dollars %in% c('2015 Dollars', 'Current Dollars'))
+   # last year in training data
+   maxy <- max(training$Year)
+   # base year
+   basey <- min(training$Year) - 1
+   
+   # linear model
+   mydata <- filter(training, 
+                    Sector == sector & 
+                       Dollars == dollars) %>% 
+      mutate(Decade = ceiling((Year - basey)/10)) %>%
+      select(-c(Dollars, Sector))
+   mod <- lm(Cost ~ Year * factor(Decade) * factor(Type), data = mydata)
+   
+   # now extrapolate under each of the
+   # 5 slope scenarios, one per decade.
+   years <- maxy + c(0:howfar)
+   types <- unique(factor(mydata$Type))
+   decades <- unique(factor(mydata$Decade))
+   newdata <- expand.grid(years,types,decades) %>%
+      rename(Year = Var1, Type = Var2, Decade = Var3)
+   pcost <- predict(mod, newdata = newdata)
+   newdata$Cost <- pcost
+   newdata <- tbl_df(newdata) %>% 
+      mutate(Decade = as.integer(Decade))
+   
+   # adjust the intercept: there has to be a
+   # jump at year 2015 so forecasts under 
+   # each decade's own slope start from the 
+   # same point
+   observed.start <- filter(mydata, Year == maxy) %>% 
+      select(-Decade) %>% 
+      rename(Observed.Cost = Cost)
+   predicted.start <- filter(newdata, Year == maxy) %>% 
+      rename(Predicted.Cost = Cost)
+   adjust <- inner_join(observed.start, predicted.start) %>%
+      arrange(Decade, Type, Year)
+   
+   adjustby <- filter(adjust, Decade == max(Decade)) %>% 
+      select(-c(Observed.Cost, Year, Decade)) %>% 
+      rename(Adjust.By = Predicted.Cost) %>%
+      inner_join(adjust) %>%
+      mutate(Adjust.By = Adjust.By - Predicted.Cost) %>%
+      arrange(Decade, Type, Year) %>%
+      select(Year, Type, Decade, Observed.Cost, Predicted.Cost, Adjust.By)
+   
+   decades <- sort(unique(adjustby$Decade))
+   dlabels <- paste((decades - 1) * 10 + basey, "s", sep = "'")
+   # get extrapolations under each slope scenario.
+   # this will help explain what the Shiny app is doing.
+   lilextra <- do.call(rbind, 
+                       sapply(decades, 
+                              function(x) cbind(x, 
+                                                c((x * 10 + 
+                                                      (basey - 10)):maxy)))) %>%
+      data.frame() %>%
+      rename(Decade = x, 
+             Year = V2)
+   lilextra$Type <- types[1]
+   lilextra2 <- select(lilextra, -Type) %>%
+      mutate(Type = types[2])
+   lilextra <- rbind(lilextra, lilextra2) %>%
+      tbl_df()
+   lilextra$Cost <- predict(mod, newdata = lilextra)
+   rm(observed.start, predicted.start, adjust, lilextra2)
+   
+   # put predicted and observed together.
+   # there's gotta be a way to ggplot both,
+   # observed as scatter and predicted as line.
+   mycast <- rbind(mutate(mydata, Observed = TRUE), 
+                   mutate(lilextra, Observed = FALSE)) %>%
+      mutate(Year = as.integer(Year), 
+             Decade = factor(Decade, levels = decades, 
+                             labels = dlabels))
+   
+   # now plot the forecast under each slope scenario.
+   # add the jump at year 2015 so forecasts start out
+   # from the same point.
+   forecast <- select(adjustby, Type, Decade, Adjust.By) %>% 
+      inner_join(newdata) %>% 
+      mutate(Cost = Cost + Adjust.By, 
+             Year = as.integer(Year), 
+             Decade = factor(Decade, levels = decades, 
+                             labels = dlabels)) %>%
+      select(-Adjust.By) %>%
+      mutate(Observed = FALSE)
+   mycast <- rbind(mycast, forecast) %>%
+      mutate(Jump = as.integer(!(Year == maxy)))
+   
+   ggplot(data = filter(mycast, Observed == TRUE), 
+          aes(x = Year, y = Cost)) + 
+      geom_line(data = filter(mycast, Observed == FALSE), 
+                aes(x = Year, y = Cost, color = Decade, 
+                    size = Jump)) + 
+      facet_grid(.~Type) + 
+      scale_colour_discrete(name = "Growth rate of:") + 
+      geom_point() + 
+      scale_size(guide = 'none', range = c(.2, 1.5)) 
+}
 
 # plot this region: x is region as in names(regions),
 # default is current dollars, fs is font size and la
@@ -183,6 +193,7 @@ plotRegion <- function(x = 'Southwest',
                 size = fs) + 
       theme(legend.position="none")
 }
+
 # if average = TRUE, then this is in and out of state combined.
 # otherwise, it's in-state only.
 plotNetVsPublished <- function(sector = 'Public Four-Year In-State', 
