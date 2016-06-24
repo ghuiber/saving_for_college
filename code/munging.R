@@ -16,7 +16,7 @@ xlsfile <- "data/2015-trends-college-pricing-source-data-12_16_15.xls"
 source('code/rawinput.R')
 
 # 
-# OK, now tidy up. Two rules:
+# OK, now tidy up. Two rules (for now):
 # 1. All tables will be turned to long tbl_df objects
 # 2. Academic years will be YYYY of the Fall year
 source('code/tidyup.R')
@@ -55,19 +55,27 @@ ggplot(data = filter(tidytabs$tab7, Sector == 'Public Four-Year In-State'),
 # within each decade. this may look 
 # like it calls for a spline regression, 
 # but a decade dummy interacted with
-# year will work well enough.
+# year will work well enough. Use glm 
+# instead of lm because the object returned
+# has more things in it, including data.
 # Arguments:
 # - training: tidy data frame to train forecast on
 # - sector: one of c('Public.Four.Year', 'Private.Nonprofit.Four.Year')
 # - dollars: as of 2016, one of c('2015 Dollars', 'Current Dollars')
 # - howfar: integer years into the future
-plotForecast <- function(training = tidytabs$tab2, 
+# Returns:
+# - a list of 2 elements: the data frame to plot the trend lines,
+#   and the decades with the slowest and fastest growth rate that
+#   I will use later to shade in the forecast range, which will 
+#   look like a kind of uncertainty cone.
+makeForecast <- function(training = tidytabs$tab2, 
                          sector = 'Public.Four.Year',
                          dollars = 'Current Dollars',
                          howfar = 12) {
    stopifnot(sector %in% c('Public.Four.Year',
                            'Private.Nonprofit.Four.Year'))
-   stopifnot(dollars %in% c('2015 Dollars', 'Current Dollars'))
+   stopifnot(dollars %in% c('2015 Dollars', 
+                            'Current Dollars'))  
    # last year in training data
    maxy <- max(training$Year)
    # base year
@@ -79,7 +87,20 @@ plotForecast <- function(training = tidytabs$tab2,
                        Dollars == dollars) %>% 
       mutate(Decade = ceiling((Year - basey)/10)) %>%
       select(-c(Dollars, Sector))
-   mod <- lm(Cost ~ Year * factor(Decade) * factor(Type), data = mydata)
+   mod <- glm(Cost ~ Year * factor(Decade) * factor(Type), 
+              data = mydata)
+   
+   # Collect slope coefficients. Find steepest, smallest
+   est <- summary(mod)$coefficients[,'Estimate']
+   est <- est[grep('(^Year$|^Year:factor\\(Decade\\)[0-9]$)', 
+                   names(est))]
+   names(est) <- paste('Decade', c(1:length(est)), sep = '.')
+   steepest <- as.integer(gsub('Decade.', 
+                               '', 
+                               names(est)[est == max(est)]))
+   smallest <- as.integer(gsub('Decade.', 
+                               '', 
+                               names(est)[est == min(est)]))
    
    # now extrapolate under each of the
    # 5 slope scenarios, one per decade.
@@ -140,7 +161,8 @@ plotForecast <- function(training = tidytabs$tab2,
                    mutate(lilextra, Observed = FALSE)) %>%
       mutate(Year = as.integer(Year), 
              Decade = factor(Decade, levels = decades, 
-                             labels = dlabels))
+                             labels = dlabels, 
+                             ordered = TRUE))
    
    # now plot the forecast under each slope scenario.
    # add the jump at year 2015 so forecasts start out
@@ -150,22 +172,61 @@ plotForecast <- function(training = tidytabs$tab2,
       mutate(Cost = Cost + Adjust.By, 
              Year = as.integer(Year), 
              Decade = factor(Decade, levels = decades, 
-                             labels = dlabels)) %>%
+                             labels = dlabels, 
+                             ordered = TRUE)) %>%
       select(-Adjust.By) %>%
       mutate(Observed = FALSE)
-   mycast <- rbind(mycast, forecast) %>%
-      mutate(Jump = as.integer(!(Year == maxy)))
+   out <- list()
+   out$df <- rbind(mycast, forecast) %>% 
+      mutate(Jump = as.integer(!(Year == maxy)), 
+             Forecast = (Year >= maxy)) %>%
+      mutate(Highest = Forecast * 
+                (as.integer(Decade) == steepest), 
+             Lowest = Forecast * 
+                (as.integer(Decade) == smallest)) %>%
+      arrange(Type, Year)
+   out$bounds <- c(smallest, steepest)
+   out
+}
+
+# Plot the linear predictor `mycast`, returned by makeForecast()
+# - type: 'Tuition and Fees' or 'Tuition and Fees and Room and Board'
+plotForecast <- function(mycast, 
+                         type = 'Tuition and Fees') {
+   stopifnot(type %in% c('Tuition and Fees', 
+                         'Tuition and Fees and Room and Board'))
+   df <- filter(mycast$df, Type == type)
    
-   ggplot(data = filter(mycast, Observed == TRUE), 
-          aes(x = Year, y = Cost)) + 
-      geom_line(data = filter(mycast, Observed == FALSE), 
+   # This is how we'll plot the uncertaity cone
+   fmean <- filter(df, Jump == 1 & Forecast == TRUE) %>%
+      group_by(Type, Year) %>%
+      summarise(Cost = mean(Cost)) %>%
+      ungroup()
+   cone <- filter(df, Jump == 1 & (Lowest == 1 | Highest == 1)) %>%
+      dplyr::select(Year, Type, Cost, Decade) %>% 
+      tidyr::spread(key = Decade, value = Cost)
+   boundaries <- levels(df$Decade)[mycast$bounds]
+   renamethem <- sapply(boundaries, gsub, pattern ="'", replacement ="")
+   renamethem <- paste('d', renamethem, sep = '')
+   names(cone)[names(cone) == boundaries] <- renamethem
+   cone <- inner_join(fmean, cone)
+   
+   # And here's the full plot
+   ggplot(data = filter(df, Observed == TRUE), 
+             aes(x = Year, y = Cost)) + 
+      geom_ribbon(data = cone, 
+                  aes_string(x = 'Year', 
+                             ymin = renamethem[1], 
+                             ymax = renamethem[2]), 
+                  alpha = 0.2) +
+      geom_line(data = filter(df, Observed == FALSE), 
                 aes(x = Year, y = Cost, color = Decade, 
                     size = Jump)) + 
-      facet_grid(.~Type) + 
       scale_colour_discrete(name = "Growth rate of:") + 
       geom_point() + 
-      scale_size(guide = 'none', range = c(.2, 1.5)) 
-}
+      scale_size(guide = 'none', range = c(.2, 1.5)) + 
+      ggtitle(type)
+}   
 
 # plot this region: x is region as in names(regions),
 # default is current dollars, fs is font size and la
@@ -199,7 +260,8 @@ plotRegion <- function(x = 'Southwest',
 plotNetVsPublished <- function(sector = 'Public Four-Year In-State', 
                                average = TRUE,
                                la = .5) {
-   stopifnot(sector %in% c('Private Nonprofit Four-Year', 'Public Four-Year In-State'))
+   stopifnot(sector %in% c('Private Nonprofit Four-Year', 
+                           'Public Four-Year In-State'))
    df <- tidytabs$tab7 %>% 
       filter(Sector == sector) 
    if(average == FALSE) {
@@ -212,3 +274,8 @@ plotNetVsPublished <- function(sector = 'Public Four-Year In-State',
       geom_line(size = 1, alpha = la) + 
       scale_colour_discrete(name = 'Type')
 }
+
+mycast <- makeForecast()
+plotFees <- plotForecast(mycast)
+plotAll <- plotForecast(mycast, type = 'Tuition and Fees and Room and Board')
+
