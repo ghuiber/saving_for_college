@@ -9,17 +9,20 @@ library('ggplot2')
 # [Trends in College Pricing](http://trends.collegeboard.org/college-pricing) report 
 # every year. Get the data in Excel; save it in the data folder.
 xlsfile <- "data/2015-trends-college-pricing-source-data-12_16_15.xls"
+
 # 
 # Get data from Excel the way it is, so 
 # you can spot check against spreadsheets.
-# You will tidy it up later.
+# You will tidy it up later. 
 source('code/rawinput.R')
+# The data at this stage are in the mytabs list.
 
 # 
 # OK, now tidy up. Two rules (for now):
 # 1. All tables will be turned to long tbl_df objects
 # 2. Academic years will be YYYY of the Fall year
 source('code/tidyup.R')
+# The data at this stage are in the tidytabs list.
 
 # Regions, states, DC and PR
 # Classification according to Table 4 Notes here: 
@@ -278,4 +281,78 @@ plotNetVsPublished <- function(sector = 'Public Four-Year In-State',
 mycast <- makeForecast()
 plotFees <- plotForecast(mycast)
 plotAll <- plotForecast(mycast, type = 'Tuition and Fees and Room and Board')
+
+# Ratio of net to published prices in 2015 dollars for
+# 4-year public colleges, across all students and then 
+# in-state only, as far back as available for both
+plotNetToStickerRatio <- function() {
+   both <- list()
+   both$all <- plotNetVsPublished()$data %>% 
+      mutate(Which = 'All') %>% tbl_df()
+   both$instate <- plotNetVsPublished(average = FALSE)$data %>% 
+      mutate(Which = 'In-State')
+   both <- lapply(both, function(x) { 
+      dplyr::select(x, Year, Which, Type, Cost) %>% 
+         tidyr::spread(key = Type, value = Cost) %>%
+         mutate(Ratio = `Net Tuition and Fees`/`Published Tuition and Fees`) %>% 
+         dplyr::select(Year, Which, Ratio)
+      })
+   foo <- do.call(rbind, both)
+   part1 <- 'Average net tuition is less than half of the sticker price'
+   part2 <- 'at 4-year public colleges, whether in-state or all combined'
+   out <- ggplot(data = foo, 
+                 aes(x = Year, 
+                     y = Ratio, 
+                     group = Which, 
+                     colour = Which)) + 
+      geom_line() + 
+      geom_hline(yintercept = .5, alpha = .4) + 
+      ggtitle(paste(part1, part2, sep = '\n'))
+   out
+}
+
+# How about same ratio by income quartile: you want to 
+# see the share of the posted price that you'll have to 
+# cover, given the income quartile q you expect to be in
+# at the time the kid goes to college. On the non-tuition
+# expenses, this share is 1 by default, b/c The College 
+# Board has no idea what discounts are available by income 
+# quartile. Probably none. But colleges make net price 
+# decisions based on income, so there are differences in 
+# net price visible by quartile to The College Board. 
+# So in the table below the MustCover column gives you an 
+# idea of how much you should save based on the tuition 
+# deal you expect to get, and then you're on your own in 
+# deciding how much of the expected living expenses you 
+# want to save ahead of time: 100% may be too paranoid. 
+# You may want to let the kid take a side gig and have to 
+# watch his or her budget; both build life skills.
+willNeedToCover <- function(q) {
+   stopifnot(q %in% c('Lowest', 'Second', 'Third', 'Highest'))
+   tbl_df(tidytabs$fig2014_14a) %>% 
+      filter(Residency == 'In-State' & Type %in% Type[grep(q, Type)]) %>%
+      mutate(Type = gsub(paste("Dependent Students' Family Income Quartile", 
+                               q, sep = " "), 
+                         "", Type)) %>% 
+      mutate(Type = trimws(gsub("For|Paid If", "", Type))) %>% 
+      tidyr::spread(key = Type, value = Cost) %>% 
+      mutate(MustCover = round(Net / Posted, digits = 2))
+}
+
+# Blended rate given willNeedToCover above:
+getBlendedForecast <- function(mycast, q) {
+   mustCover <- willNeedToCover(q)
+   foo <- tbl_df(mycast$df) %>% 
+      filter(Forecast == FALSE & Observed == TRUE) %>% 
+      dplyr::select(Year, Type, Cost) %>% 
+      tidyr::spread(key = Type, value = Cost) %>% 
+      mutate(`Room and Board` = 
+                `Tuition and Fees and Room and Board` - 
+                `Tuition and Fees`)
+   # aside: tuition and fees grow faster than room & board.
+   # their ratio changes by about 1.2% per year
+   foo <- mutate(foo, Ratio = `Tuition and Fees`/`Room and Board`)
+   summary(lm(Ratio ~ Year, data = foo))
+   ggplot(data = foo, aes(x = Year, y = Ratio)) + geom_point()
+}
 
