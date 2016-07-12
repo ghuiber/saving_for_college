@@ -181,6 +181,7 @@ makeForecast <- function(training = tidytabs$tab2,
       mutate(Observed = FALSE)
    out <- list()
    out$df <- rbind(mycast, forecast) %>% 
+      tbl_df() %>%
       mutate(Jump = as.integer(!(Year == maxy)), 
              Forecast = (Year >= maxy)) %>%
       mutate(Highest = Forecast * 
@@ -240,8 +241,10 @@ plotRegion <- function(x = 'Southwest',
                        dollars = 'Current Dollars', 
                        fs = 5, la = .5, 
                        flagship = FALSE) {
-   rstates <- states[,'state.name'][states[,'state.abb'] %in% regions[[x]]]
-   rst <- states[,'state.abb'][states[,'state.abb'] %in% regions[[x]]]
+   rstates <- states[,'state.name'][states[,'state.abb'] %in% 
+                                       regions[[x]]]
+   rst <- states[,'state.abb'][states[,'state.abb'] %in% 
+                                  regions[[x]]]
    df <- tidytabs$tab5 %>% 
       filter(Dollars == dollars & State %in% rstates)
    if(flagship == TRUE) {
@@ -342,7 +345,7 @@ willNeedToCover <- function(q) {
 # Blended rate given willNeedToCover above:
 getBlendedForecast <- function(mycast, q) {
    mustCover <- willNeedToCover(q)
-   foo <- tbl_df(mycast$df) %>% 
+   foo <- mycast$df %>% 
       filter(Forecast == FALSE & Observed == TRUE) %>% 
       dplyr::select(Year, Type, Cost) %>% 
       tidyr::spread(key = Type, value = Cost) %>% 
@@ -350,9 +353,46 @@ getBlendedForecast <- function(mycast, q) {
                 `Tuition and Fees and Room and Board` - 
                 `Tuition and Fees`)
    # aside: tuition and fees grow faster than room & board.
-   # their ratio changes by about 1.2% per year
+   # their ratio changes by about 1.3% per year
    foo <- mutate(foo, Ratio = `Tuition and Fees`/`Room and Board`)
    summary(lm(Ratio ~ Year, data = foo))
    ggplot(data = foo, aes(x = Year, y = Ratio)) + geom_point()
 }
+
+# So if posted (Tuition and Fees) + (Room and Board) go up
+# to a total of x by year t, then based on their expected 
+# ratio as of t you can forecast how much of x you should 
+# expect to have to cover, between the discount on tuition 
+# based on income quartile (higher quartiles get lower 
+# discount) and the discount on Room and Board based on 
+# income quartile (which is 0, because the private sector 
+# that feeds and houses you won't give you an income-based 
+# scholarship). The savings will be small, but growing over 
+# time, because as long as sticker price tuition and fees 
+# continue to grow faster than the cost of room and board, 
+# the portion of the total cost on which you do get a discount 
+# grows over time.
+
+# A conservative way to go, the, is to keep it fixed at the 2010's
+# observed level, which is about .93. This means that the blended
+# discount rate on the total posted at year t is roughly half the 
+# tuition discount rate for a given income quartile. If so, you can
+# just take the simple mean of the MustCover column.
+
+# So, full recipe:
+myt <- 11
+myq <- 'Third'
+myshare <- mean(willNeedToCover(q = myq)$MustCover)
+mycast <- makeForecast(howfar = myt)$df %>% 
+   filter(Year == max(Year) & 
+             Type == 'Tuition and Fees and Room and Board') %>% 
+   mutate(Cost = Cost * myshare) %>% 
+   dplyr::select(Year, Cost, Decade, Highest, Lowest)
+
+# How about a simple linear trend for one flagship university?
+mydf <- plotRegion(x = 'South', flagship = TRUE)$data %>% 
+   tbl_df() %>% filter(University == 'University of North Carolina at Chapel Hill' & 
+                          Dollars == 'Current Dollars')
+mod <- lm(Cost ~ I(Year - min(Year)), data = mydf)
+
 
