@@ -4,7 +4,7 @@ A look at 2015 data from The College Board.
 
 The original plan was to make some kind of Shiny app so people could put in their own time until the kids go to college and the kind of college they have in mind -- 4-year public in-state, out-of-state, or private nonprofit, and I was going to pitch it at [Analytics Forward](http://www.meetup.com/Research-Triangle-Analysts/events/228455037/?rv=ea1).
 
-The current minimum viable product is a function -- `getMonthlySaving()` -- that will tell you how much you need to set aside per month, per kid, given some assumption about the asset return, time until college starts, and your expected income quartile then, assuming a linear or compound growth rate of the cost of attendance. If you `apply` it to more than one child, income quartile as shown in `forecast.R` you get a table like the one below, with dollar figures in the last two columns:
+The current minimum viable product is a function -- `getMonthlySaving()` -- that will tell you how much you need to set aside per month, per kid, given some assumption about the asset return, time until college starts, and your expected income quartile then, assuming a linear or compound growth rate of the cost of attendance. If you `apply` it to more than one child, income quartile as shown in `forecasting.R` you get a table like the one below, with dollar figures in the last two columns:
 
 |  years | balances | kid  | incquart | r     | linear trend | compound growth |
 |:------:|:--------:|:----:|:--------:|:-----:|:------------:|:---------------:|
